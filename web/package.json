@@ -1,0 +1,21 @@
+{
+  "name": "financial-market-analytics",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build --base=./",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "npm run build && playwright test",
+    "test:unit": "node --test tests/metrics.test.js"
+  },
+  "dependencies": {
+    "sql.js": "1.13.0",
+    "lucide": "0.468.0"
+  },
+  "devDependencies": {
+    "vite": "6.4.6",
+    "@playwright/test": "1.56.1"
+  }
+}
