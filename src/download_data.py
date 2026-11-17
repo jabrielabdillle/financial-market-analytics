@@ -66,7 +66,7 @@ def save_outputs(prices: pd.DataFrame) -> None:
     long_prices["date"] = pd.to_datetime(long_prices["date"]).dt.strftime("%Y-%m-%d")
     long_prices.to_csv(RAW_DIR / "adjusted_prices_long.csv", index=False, float_format="%.6f")
 
-    returns = prices.pct_change().dropna(how="all")
+    returns = prices.pct_change(fill_method=None).dropna(how="all")
     returns.index.name = "date"
     returns.to_csv(PROCESSED_DIR / "daily_returns.csv", float_format="%.8f")
 

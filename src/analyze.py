@@ -12,46 +12,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 PRICE_FILE = ROOT / "data" / "raw" / "adjusted_prices.csv"
 OUTPUT_DIR = ROOT / "outputs"
-TRADING_DAYS = 252
-
-
-def calculate_metrics(prices: pd.DataFrame, risk_free_rate: float = 0.0) -> pd.DataFrame:
-    """Calculate descriptive performance metrics for each price series."""
-    returns = prices.pct_change().dropna(how="all")
-    rows = []
-
-    for ticker in prices.columns:
-        series = prices[ticker].dropna()
-        asset_returns = returns[ticker].dropna()
-        if len(series) < 2 or asset_returns.empty:
-            continue
-
-        years = len(asset_returns) / TRADING_DAYS
-        cumulative_return = series.iloc[-1] / series.iloc[0] - 1
-        annualized_return = (series.iloc[-1] / series.iloc[0]) ** (1 / years) - 1 if years > 0 else np.nan
-        annualized_volatility = asset_returns.std(ddof=1) * np.sqrt(TRADING_DAYS)
-        daily_rf = (1 + risk_free_rate) ** (1 / TRADING_DAYS) - 1
-        excess_returns = asset_returns - daily_rf
-        sharpe = (
-            excess_returns.mean() / asset_returns.std(ddof=1) * np.sqrt(TRADING_DAYS)
-            if asset_returns.std(ddof=1) > 0 else np.nan
-        )
-        wealth = (1 + asset_returns).cumprod()
-        drawdown = wealth / wealth.cummax() - 1
-
-        rows.append({
-            "ticker": ticker,
-            "start_date": series.index.min().date().isoformat(),
-            "end_date": series.index.max().date().isoformat(),
-            "observations": len(asset_returns),
-            "cumulative_return": cumulative_return,
-            "annualized_return": annualized_return,
-            "annualized_volatility": annualized_volatility,
-            "sharpe_ratio": sharpe,
-            "maximum_drawdown": drawdown.min(),
-        })
-
-    return pd.DataFrame(rows).sort_values("annualized_return", ascending=False)
+from .metrics import TRADING_DAYS, calculate_metrics, validate_prices, period_returns
 
 
 def create_charts(prices: pd.DataFrame, returns: pd.DataFrame) -> None:
@@ -67,8 +28,7 @@ def create_charts(prices: pd.DataFrame, returns: pd.DataFrame) -> None:
     plt.savefig(OUTPUT_DIR / "cumulative_growth.png", dpi=160)
     plt.close()
 
-    wealth = (1 + returns).cumprod()
-    drawdowns = wealth / wealth.cummax() - 1
+    drawdowns = prices / prices.cummax() - 1
     ax = drawdowns.plot(figsize=(12, 6), linewidth=1)
     ax.set_title("Historical drawdowns")
     ax.set_ylabel("Drawdown")
@@ -90,13 +50,12 @@ def create_charts(prices: pd.DataFrame, returns: pd.DataFrame) -> None:
 
 
 def run_analysis(prices: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    prices = prices.apply(pd.to_numeric, errors="coerce").dropna(how="all")
-    returns = prices.pct_change().dropna(how="all")
+    prices = validate_prices(prices)
+    returns = prices.pct_change(fill_method=None).dropna(how="all")
     metrics = calculate_metrics(prices)
-    annual_returns = prices.resample("YE").last().pct_change()
-    annual_returns.index = annual_returns.index.year
+    annual_returns = period_returns(prices, "Y")
     annual_returns.index.name = "year"
-    monthly_returns = prices.resample("ME").last().pct_change().dropna(how="all")
+    monthly_returns = period_returns(prices, "M")
     monthly_returns.index.name = "month"
     correlations = returns.corr()
 
