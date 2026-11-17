@@ -12,3 +12,6 @@ Build responsive asset/date filters, normalized growth chart, drawdown view, ris
 Run relevant Python and browser checks, publish through GitHub Actions to GitHub Pages, verify the live site, and record actual counts and results. Update README, MEMORY, deployment notes, and interview guide. Each milestone gets a commit, PR and authorized merge.
 
 No investment predictions or performance improvements will be invented. Observed data requires source and adjustment metadata; simulation is always labeled.
+
+## Completion evidence
+M1 merged as PR #10; M2 merged as PR #11. M3 publication verified on 2026-11-17 through successful Pages run 44028291382 and live overview/SQLite filtering. Documentation is the final milestone PR. See docs/VALIDATION.md.

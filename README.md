@@ -1,191 +1,98 @@
-# Financial Market Analytics & Investment Trends
+# Financial Market Analytics
 
-A reproducible analytics project that explores historical market performance, return patterns, volatility, drawdowns, and relationships across a diversified set of publicly traded ETFs.
+An interactive research dashboard for comparing growth, volatility, drawdowns, correlations and tail losses. Python prepares a reproducible dataset; JavaScript recomputes metrics for selected windows; SQLite runs inside the browser through WebAssembly.
 
-> **Purpose:** Demonstrate an end-to-end analytics workflow using Python, SQL, PostgreSQL, and Power BI. This is an educational portfolio project, not investment advice.
+**Public demo:** https://jabrielabdillle.github.io/financial-market-analytics/
 
-## Business questions
+The public dataset is **synthetic**: 31,308 prices across six fictional asset models and 5,218 weekday dates from 2006-01-02 through 2025-12-31. It does not represent actual ETF performance. The demo is an educational analytics tool, not an investment recommendation or predictive model.
 
-1. How have selected asset classes performed over time?
-2. Which assets have had the highest historical volatility?
-3. What were the largest peak-to-trough drawdowns?
-4. How have returns and correlations changed across market regimes?
-5. How can these findings be communicated to a non-technical audience?
+## What you can do
 
-## Tools
+- Compare all six assets over a chosen date range and risk-free-rate assumption.
+- Inspect normalized growth, drawdown and 63-session rolling volatility.
+- Compare CAGR, total return, volatility, Sharpe, VaR95 and expected shortfall.
+- Inspect correlations and compounded calendar-year returns, including partial periods.
+- Query the SQLite price table by asset and date, paginate results, and export filtered CSV.
+- Download the database, price dataset and provenance metadata.
 
-- Python: `pandas`, `numpy`, `yfinance`, `matplotlib`
-- SQL: PostgreSQL-compatible schema and analytical queries
-- BI: Power BI (dashboard build guide included below)
-- Git: version control and reproducibility
+## Run locally
 
-## Assets
-
-The default universe uses liquid, widely followed ETFs as market proxies:
-
-| Ticker | Proxy |
-|---|---|
-| SPY | US large-cap equities |
-| QQQ | Nasdaq-100 equities |
-| IWM | US small-cap equities |
-| EFA | Developed international equities |
-| AGG | US investment-grade bonds |
-| GLD | Gold |
-
-These are proxies, not complete representations of entire asset classes. Historical performance does not predict future results.
-
-## Quick start
-
-### 1. Clone and install
+Python 3.12 and Node 22 are used in CI.
 
 ```bash
-git clone https://github.com/jabrielabdillle/financial-market-analytics.git
-cd financial-market-analytics
-python -m venv .venv
-# macOS/Linux
+python3 -m venv .venv
 source .venv/bin/activate
-# Windows
-# .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements.lock
+python -m src.export
+python -m pytest -q
+cd web
+npm ci
+npm run test:unit
+npm run dev
 ```
 
-### 2. Download public market data
+Production build and browser checks:
 
 ```bash
-python -m src.download_data --start 2012-01-01
+cd web
+npx playwright install --with-deps chromium
+npm test
 ```
 
-This downloads adjusted daily prices through the latest available date and saves:
-- `data/raw/adjusted_prices.csv`
-- `data/processed/daily_returns.csv`
+On macOS the browser configuration uses the installed Google Chrome application. On Linux it uses Playwright Chromium. `npm test` builds the production assets before opening the preview server.
 
-The data provider may change its access policies, symbols, or availability. Review the provider's terms before use.
+## Data pipeline
 
-### 3. Run the analysis
+`python -m src.export` generates the demo and exports these files into `web/public/data/`:
+
+| File | Purpose |
+| --- | --- |
+| `prices.csv` | Wide daily price panel |
+| `market.json` | Frontend data and Python reference metrics |
+| `metrics.csv` | Full-window performance and risk metrics |
+| `annual_returns.csv` | Compounded available returns by calendar year |
+| `market.sqlite` | Price records, asset/date index, provenance table |
+| `provenance.json` | Source, coverage, counts, assumptions and CSV SHA-256 |
+
+Generated data is ignored by Git and rebuilt in CI. The simulation uses a fixed random seed and documented arbitrary stress periods. Price panels must be complete, finite, positive, sorted and unique; missing values are rejected rather than implicitly filled.
+
+To analyze a dataset you are entitled to use, supply a wide CSV with a `date` column and explicit source metadata:
 
 ```bash
-python -m src.analyze
+python -m src.export --prices adjusted_prices.csv \
+  --source "Provider and retrieval date" \
+  --adjustment "Describe split and dividend adjustment"
 ```
 
-Outputs are written to `outputs/`:
-- `asset_performance.csv`
-- `annual_returns.csv`
-- `monthly_returns.csv`
-- `correlation_matrix.csv`
-- `cumulative_growth.png`
-- `drawdowns.png`
-- `rolling_volatility.png`
+The original optional `src.download_data` module downloads ETF data through yfinance. Network access and the provider's terms/availability apply. It was not used for the public demo. PostgreSQL-compatible templates remain in `sql/`; the deployed application uses SQLite. No PostgreSQL server or Power BI report is deployed.
 
-### 4. Run tests
+## Validation
 
-```bash
-pytest
-```
+- 13 Python regression tests cover initial-day loss, invalid/missing values, constant series, partial periods, tail metrics, SQL returns, export integrity and deterministic generation.
+- 3 JavaScript tests cover analytic fixtures and agreement with Python metrics.
+- 6 Playwright checks cover filters, invalid windows, chart controls, CSV/SQLite downloads, provenance and five viewport widths.
 
-## Repository structure
+The CI workflow repeats these checks before publishing the application. The separate Taste design gate could not run its local server; see [design notes](docs/DESIGN.md) for that limitation.
+
+## Architecture
 
 ```text
-financial-market-analytics/
-├── data/
-│   ├── raw/
-│   └── processed/
-├── outputs/
-├── sql/
-│   ├── schema.sql
-│   └── analysis_queries.sql
-├── src/
-│   ├── __init__.py
-│   ├── download_data.py
-│   └── analyze.py
-├── tests/
-│   └── test_metrics.py
-├── .gitignore
-├── requirements.txt
-└── README.md
+Seeded simulator OR supplied adjusted-price CSV
+  → validated Pandas price panel
+  → NumPy/Pandas metrics + provenance hash
+  → JSON + CSV + indexed SQLite exports
+  → Vite browser dashboard + sql.js queries
+  → GitHub Actions checks → GitHub Pages
 ```
 
-## Key metrics
+No paid hosting, external database account, API secret or persistent server is required. Visitor filters run locally. The SQLite database is a read-only research snapshot; exports create local copies.
 
-- **Cumulative return:** total percentage change over the selected period.
-- **Annualized return:** geometrically annualized growth rate.
-- **Annualized volatility:** standard deviation of daily returns multiplied by the square root of 252.
-- **Sharpe ratio:** annualized average excess daily return divided by annualized volatility. This project uses a configurable zero risk-free-rate assumption by default; interpret it as a simplified comparison.
-- **Maximum drawdown:** largest peak-to-trough decline in the cumulative wealth index.
+## Documentation
 
-Metrics are calculated from adjusted closing prices and daily percentage returns. Trading days are approximated as 252 per year.
+- [Metric definitions and limitations](docs/METHODOLOGY.md)
+- [Deployment and maintenance](docs/DEPLOYMENT.md)
+- [Interview explanation](docs/INTERVIEW_GUIDE.md)
+- [Milestone evidence](docs/VALIDATION.md)
+- [Agent instructions](AGENTS.md) and [project memory](MEMORY.md)
 
-## SQL / PostgreSQL
-
-Create a database, then run:
-
-```bash
-psql -d market_analytics -f sql/schema.sql
-```
-
-After running the Python pipeline, load `data/raw/adjusted_prices.csv` into the `daily_prices` table using your preferred PostgreSQL import method (for example, `\copy`). Example:
-
-```sql
-\copy daily_prices(date, ticker, adjusted_close)
-FROM 'data/raw/adjusted_prices_long.csv'
-WITH (FORMAT csv, HEADER true);
-```
-
-The download script also creates `adjusted_prices_long.csv` for this purpose. Then run the queries in `sql/analysis_queries.sql`.
-
-## Power BI dashboard
-
-Import these files from `outputs/`:
-- `asset_performance.csv`
-- `annual_returns.csv`
-- `monthly_returns.csv`
-
-Suggested report pages:
-
-**Page 1 — Executive overview**
-- KPI cards: best annualized return, lowest volatility, strongest Sharpe ratio
-- Line chart: cumulative growth of $10,000
-- Slicers: ticker and date range
-
-**Page 2 — Risk and return**
-- Scatter plot: annualized volatility vs. annualized return
-- Bar chart: maximum drawdown by ticker
-- Table: all performance metrics
-
-**Page 3 — Performance over time**
-- Matrix: annual returns by ticker and year
-- Line chart: rolling annualized volatility
-- Heatmap: correlation matrix
-
-Document your DAX measures and include dashboard screenshots in the repository once built.
-
-## Interpretation checklist
-
-When writing the findings, answer:
-- Did the asset with the highest return also have the highest volatility?
-- Which asset experienced the deepest drawdown?
-- Were correlations stable across the period?
-- Did rankings change when measuring risk-adjusted returns?
-- What limitations could affect the conclusions?
-
-Do not claim causation from these descriptive comparisons.
-
-## Limitations
-
-- ETF proxies do not capture every investment exposure.
-- Yahoo Finance data is a third-party source and may be revised or unavailable.
-- This analysis does not model taxes, fees, bid-ask spreads, or investor-specific constraints.
-- Sharpe ratios depend on the risk-free-rate assumption.
-- Historical data contains survivorship and selection limitations.
-
-## Next improvements
-
-- Add a risk-free-rate series and calculate excess-return Sharpe ratios.
-- Compare rolling correlations across market regimes.
-- Add a PostgreSQL ingestion script and automated data-quality checks.
-- Publish an interactive Power BI report with documented measures.
-- Add a scheduled refresh workflow.
-
-## Author
-
-**Jabriel Abdille**  
-Data Science student | Data Analytics | Python | SQL | BI
+Historical or simulated descriptive statistics do not establish future returns. This analysis excludes trading costs, taxes and investor-specific constraints. CAGR uses elapsed calendar days; volatility and Sharpe use the 252-session convention. Boundary years may be partial.
