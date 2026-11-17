@@ -11,3 +11,10 @@ data/processed/*
 outputs/*
 !outputs/.gitkeep
 .pytest_cache/
+node_modules/
+web/dist/
+web/public/data/
+web/test-results/
+web/playwright-report/
+.taste-skill/
+artifacts/
